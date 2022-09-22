@@ -1,61 +1,86 @@
 <?php
-session_start();
+    include "./db/connect.php";
+    include "./functions.php";
 
-require "db/connect.php";
-
-$data = file_get_contents('php://input');
-$info = json_decode($data);
-
-
-    $email = filter_var($info->email, FILTER_VALIDATE_EMAIL);
-    $createpassword = filter_var($info->createpassword, FILTER_SANITIZE_FULL_SPECIAL_CHARS );
-    $confirmpassword = filter_var($info->confirmpassword, FILTER_SANITIZE_FULL_SPECIAL_CHARS );
+    $data = file_get_contents('php://input');
+    $datas = json_decode($data);
+    // var_dump($datas);
     
-    //checking input vaalues
-    if (!$email ) {
-        echo "Please enter a valid Email";
-        exit();
-    }
-    elseif(strlen($createpassword) < 8 || strlen($confirmpassword) < 8){
-       echo "Password should be 8+ characters!";
-       exit();
-    }
-    elseif ($createpassword !== $confirmpassword) {
-        echo'Passwords do not match';
-        exit();
-    }else {
-        // hash password
-        $hashed_password = password_hash($createpassword, PASSWORD_DEFAULT); 
-    }
+    
+    $fullname = validateSignUP($datas->fullname);
+    $email = validateEmail($datas->email);
+    $password = validateSignUP($datas->password);
+    $confirmpassword = validateSignUP($datas->confirmpassword);
+    // echo $datas->fullname;
+    // exit;
+    
+    isset($datas->fullname, $datas->email, $datas->password,  $datas->confirmpassword,)?:response(false,"invalid parameter","");
+    // echo $fullname;
+    // exit;
 
-    // check if username or email already exist in database
-    $inset_check_query = "SELECT * FROM users WHERE  email = '$email'";
-    $inset_check_result = mysqli_query($conn, $inset_check_query); 
-    if (mysqli_num_rows($inset_check_result)) {
-        echo "Username or Email already exits";
-        exit;
-    }
-    else {
-        // inser new user into user table
-        $inset_user_query = "INSERT INTO users (email, password) 
-        VALUES ('$email', '$hashed_password')";
-        $insert_user_result = mysqli_query($conn, $inset_user_query);
-        if (!mysqli_errno($conn)) {
-            $status = array(
-                'status' => true,
-                'msg' => "User Successfully Register"
-              );
-                $status = json_encode($status);    
-                echo($status);
-                exit();    
-        }
-        else {
-            $status = array(
+    if(!$fullname){
+        response(false,"Enter your full name","");
+    }elseif(!$email){
+        response(false,"enter a valid mail","");
+    }elseif(!$password){
+        response(false,"enter your password","");
+    }elseif(!$confirmpassword){
+        response(false, "confirm your password", "");
+    }elseif(strlen($password) < 8 || strlen($confirmpassword) < 8){
+        response(false,"password should be 8+ characters","");  
+    }else{
+        if(strlen($password) < 8 || strlen($confirmpassword) < 8){
+            $arr = array(
                 'status' => false,
-                'msg' => "User Fail Register"
-              );
-                $status = json_encode($status);    
-                echo($status);
-                exit();    
+                'msg' =>"password should be 8+ characters ",
+             );
+                $array = json_encode($arr);
+                echo $array;
+                exit();
+        }else{
+            if($password !== $confirmpassword){
+                $arr = array(
+                    'status' => false,
+                    'msg' =>"password dont match ",
+                );
+                    $array = json_encode($arr);
+                    echo $array;
+                    exit();
+            }else{
+                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+
+                $user_check_query = "SELECT * FROM users where  email = '$email'";
+                $user_check_result = mysqli_query($conn, $user_check_query);
+
+                $professional_check_query = "SELECT * FROM professionals where email= '$email'";
+                $professional_check_result = mysqli_query($conn, $professional_check_query);
+
+                if(mysqli_num_rows($user_check_result) > 0){
+                    $arr = array(
+                        'status' => false,
+                        'msg' =>"This email is currently in use",
+                        );
+                        $array = json_encode($arr);
+                        echo $array;
+                        exit();
+                }elseif(mysqli_num_rows($professional_check_result) > 0){
+                    $arr = array(
+                        'status' => false,
+                        'msg' =>"This email is currently in use",
+                        );
+                        $array = json_encode($arr);
+                        echo $array;
+                        exit();
+                }else{ 
+                    $insert_user_query = "INSERT INTO users (fullname, email, password, is_admin) VALUES('$fullname','$email', '$hashed_password', 'client')";
+                    
+                    if($conn->query($insert_user_query)){
+                        response(true,"Registration successful. pls Login","");
+                    }else{
+                        response(false,"Registration unsuccessful","");
+                    };
+                }
+                
+            }
         }
-    }   
+    }
